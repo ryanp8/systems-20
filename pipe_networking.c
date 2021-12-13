@@ -10,6 +10,12 @@
   =========================*/
 int server_handshake(int *to_client) {
   int from_client = 0;
+  mkfifo("downstream", 0664);
+  int fd = open("downstream", O_RDONLY);
+  if (fd == -1) printf("error %d: %s\n", errno, strerror(errno));
+  
+  *to_client = fd;
+  close(fd)
   return from_client;
 }
 
