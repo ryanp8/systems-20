@@ -11,37 +11,37 @@
 int server_handshake(int *to_client) {
   int from_client = 0;
 
+  // create well known pipe
   int res = mkfifo(WKP, 0664);
-  if (res == -1) printf("error %d: %s\n", errno, strerror(errno));
-  else printf("created wkp\n");
+  if (res == -1) printf("mkfifo error %d: %s\n", errno, strerror(errno));
+  else printf("[server] created wkp\n");
 
-  int fd = open(WKP, O_RDONLY);
-  if (fd == -1) printf("error %d: %s\n", errno, strerror(errno));
-  else printf("server connected to wkp\n");
+  from_client = open(WKP, O_RDONLY);
+  if (res == -1) printf("open error %d: %s\n", errno, strerror(errno));
 
-  char handshake_buffer[HANDSHAKE_BUFFER_SIZE];
-  read(fd, handshake_buffer, sizeof(handshake_buffer));
-  printf("received handshake: [%s]\n", handshake_buffer);
-  from_client = fd;
-  remove("./"WKP);
+  char buf[HANDSHAKE_BUFFER_SIZE];
+  res = read(from_client, buf, sizeof(buf));
+  if (res == -1) printf("read error %d: %s\n", errno, strerror(errno));
+  else printf("[server] read [%s]\n", buf);
+
+  remove(WKP);
   printf("removed "WKP"\n");
-  close(fd);
 
-  fd = open(handshake_buffer, O_WRONLY);
-  if (fd == -1) printf("error %d: %s\n", errno, strerror(errno));
-  else printf("server connected to %s\n", handshake_buffer);
-  *to_client = fd;
-  
-  char syn_ack[HANDSHAKE_BUFFER_SIZE] = "private";
-  write(fd, syn_ack, sizeof(syn_ack));
-  printf("sent SYN_ACK('%s') to client on %s\n", syn_ack, handshake_buffer);
-  close(fd);
+  // printf("[%s]\n", buf);
+  *to_client = open(buf, O_WRONLY);
+  if (*to_client == -1) printf("open error %d: %s\n", errno, strerror(errno));
+  else printf("[server] connected to [%s]\n", buf);
 
-  fd = open(handshake_buffer, O_RDONLY);
-  char ack[HANDSHAKE_BUFFER_SIZE];
-  read(fd, ack, sizeof(ack));
-  printf("received [%s]\n", ack);
-  close(fd);
+  char syn_ack[10] = "hello";
+  res = write(*to_client, syn_ack, sizeof(syn_ack));
+  if (*to_client == -1) printf("write error %d: %s\n", errno, strerror(errno));
+  else printf("[server] sent syn_ack [%s]\n", syn_ack);
+
+  char ack[10];
+  res = read(from_client, ack, sizeof(ack));
+  if (res == -1) printf("read error %d: %s\n", errno, strerror(errno));
+  else printf("[server] read [%s]\n", ack);
+
 
   return from_client;
 }
@@ -56,38 +56,35 @@ int server_handshake(int *to_client) {
   =========================*/
 int client_handshake(int *to_server) {
   int from_server = 0;
+
   char private_buf[HANDSHAKE_BUFFER_SIZE];
   sprintf(private_buf, "%d", getpid());
 
   int res = mkfifo(private_buf, 0664);
-  if (res == -1) printf("error %d: %s\n", errno, strerror(errno));
-  else printf("client created private %s pipe\n", private_buf);
+  if (res == -1) printf("mkfifo error %d: %s\n", errno, strerror(errno));
+  else printf("[client] created private\n");
 
-  int fd = open(WKP, O_WRONLY);
-  if (fd == -1) printf("error %d: %s\n", errno, strerror(errno));
-  else printf("client connected to wkp\n");
+  *to_server = open(WKP, O_WRONLY);
+  if (*to_server == -1) printf("open error %d: %s\n", errno, strerror(errno));
+  else printf("[client] connected to ["WKP"]\n");
 
-  write(fd, private_buf, sizeof(private_buf));
-  *to_server = fd;
-  printf("sent [%s] to server\n", private_buf);
-  close(fd);
+  res = write(*to_server, private_buf, sizeof(private_buf));
+  if (res == -1) printf("write error %d: %s\n", errno, strerror(errno));
+  else printf("[client] wrote [%s] to server\n", private_buf);
 
-  char handshake_buffer[HANDSHAKE_BUFFER_SIZE];
-  fd = open(private_buf, O_RDONLY);
-  if (fd == -1) printf("error %d: %s\n", errno, strerror(errno));
-  else printf("client connected %s\n", private_buf);
-  read(fd, handshake_buffer, sizeof(handshake_buffer));
-  printf("received [%s]\n", handshake_buffer);
-  from_server = fd;
-  close(fd);
+  from_server = open(private_buf, O_RDONLY);
+  char syn_ack[10];
+  res = read(from_server, syn_ack, sizeof(syn_ack));
+  if (res == -1) printf("read error %d: %s\n", errno, strerror(errno));
+  else printf("[client] read [%s] from server\n", syn_ack);
 
-  fd = open(private_buf, O_WRONLY);
-  write(fd, ACK, strlen(ACK));
-  printf("writing ["ACK"] to server\n");
-  close(fd);
-  
+
   remove(private_buf);
   printf("removed %s\n", private_buf);
+
+  res = write(*to_server, ACK, 10);
+  if (res == -1) printf("write error %d: %s\n", errno, strerror(errno));
+  else printf("[client] wrote ["ACK"] to server\n");
 
   
   return from_server;
